@@ -1,0 +1,254 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: cachet
+# TODO rewrite to include that setup has to be completed
+message: |
+  Cachet has been initialized.
+metadata:
+  annotations:
+    openshift.io/display-name: "Cachet (The open source status page system)"
+    description: >-
+      Cachet - the open source status page system.
+
+      For more information about cachet, please visit https://cachethq.io/
+    tags: cachet,status,status page
+    iconClass: icon-nginx
+    openshift.io/documentation-url: "https://github.com/cit1zen/cachet-openshift"
+  name: cachet
+
+objects:
+- kind: Service
+  apiVersion: v1
+  metadata:
+    labels:
+      io.kompose.service: cachet
+      app: frontend
+    name: cachet
+  spec:
+    ports:
+    - name: "http"
+      port: 80
+      targetPort: 8000
+    selector:
+      io.kompose.service: cachet
+
+- kind: Route
+  apiVersion: v1
+  metadata:
+    name: cachet
+  spec:
+    host: "${CACHET_URL}"
+    to:
+      kind: Service
+      name: cachet
+    tls:
+      insecureEdgeTerminationPolicy: Allow
+      termination: edge
+
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: cachet
+  stringData:
+    DB_USERNAME: "${DB_USERNAME}"
+    DB_PASSWORD: "${DB_PASSWORD}"
+    DB_DATABASE: "${DB_DATABASE}"
+    APP_KEY: "${APP_KEY}"
+
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    labels:
+      io.kompose.service: cachet
+      app: frontend
+    name: cachet
+  spec:
+    triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+        - cachet
+        from:
+          kind: "ImageStreamTag"
+          name: "cachet-official:${CACHET_TAG}"
+    template:
+      metadata:
+        labels:
+          io.kompose.service: cachet
+          app: frontend
+        name: nginx
+      spec:
+        containers:
+        - name: cachet
+          env:
+          - name: APP_ENV
+            value: production
+          - name: APP_DEBUG
+            value: 'false'
+          - name: APP_URL
+            value: 'https://${CACHET_URL}'
+          - name: APP_KEY
+            valueFrom:
+              secretKeyRef:
+                name: cachet
+                key: APP_KEY
+
+          - name: DB_DATABASE
+            valueFrom:
+              secretKeyRef:
+                name: cachet
+                key: DB_DATABASE
+          - name: DB_DRIVER
+            value: "${DB_DRIVER}"
+          - name: DB_HOST
+            value: "${DB_HOST}"
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: cachet
+                key: DB_PASSWORD
+          - name: DB_PORT
+            value: "${DB_PORT}"
+          - name: DB_PREFIX
+            value: "${DB_PREFIX}"
+          - name: DB_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: cachet
+                key: DB_USERNAME
+
+          - name: DEBUG
+            value: "false"
+          - name: DOCKER
+            value: 'true'
+
+          - name: CACHE_DRIVER
+            value: "apc"
+
+          - name: SESSION_DRIVER
+            value: "database"
+          # - name: SESSION_DOMAIN
+          #   value: "{{SESSION_DOMAIN:-$APP_URL}}"
+          # - name: SESSION_SECURE_COOKIE
+          #   value: "false"
+
+          - name: QUEUE_DRIVER
+            value: "database"
+
+          - name: CACHET_EMOJI
+            value: "false"
+          - name: CACHET_BEACON
+            value: "true"
+          - name: CACHET_AUTO_TWITTER
+            value: "true"
+
+          - name: MAIL_DRIVER
+            value: smtp
+          - name: MAIL_HOST
+            value: email.com
+          - name: MAIL_PORT 
+            value: "25"
+          - name: MAIL_USERNAME
+            value: "null"
+          - name: MAIL_PASSWORD
+            value: "null"
+          - name: MAIL_ADDRESS
+            value: "somethin@something.com"
+          - name: MAIL_NAME
+            value: "Status"
+          - name: MAIL_ENCRYPTION
+            value: "null"
+
+          - name: REDIS_HOST
+            value: "null"
+          - name: REDIS_DATABASE
+            value: "null"
+          - name: REDIS_PORT
+            value: "null"
+          - name: REDIS_PASSWORD
+            value: "null"
+
+          - name: GITHUB_TOKEN
+            value: "null"
+
+          - name: NEXMO_KEY
+            value: "null"
+          - name: NEXMO_SECRET
+            value: "null"
+          - name: NEXMO_SMS_FROM
+            value: "Cachet"
+
+          image: cachet-official
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /dashboard
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /dashboard
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            timeoutSeconds: 20
+          ports:
+            - containerPort: 8000
+          command: ['/sbin/entrypoint.sh']
+          restartPolicy: Always
+          securityContext:
+            capabilities": {}
+            privileged: false
+
+parameters:
+# TODO refactor
+- name: DB_USERNAME
+  displayName: 'Database user'
+  required: true
+
+- name: DB_PASSWORD
+  displayName: 'User password'
+  required: true
+
+- name: DB_HOST
+  displayName: 'Database host'
+  required: true
+
+- name: DB_DATABASE
+  displayName: 'Name of database'
+  required: true
+
+- name: DB_PORT
+  displayName: 'Database port'
+  description: 3306 (MySQL database), 5432 (PostgreSQL database)
+  required: true
+  value: "5432"
+
+- name: DB_DRIVER
+  displayName: 'Database driver'
+  description: mysql (MySQL database), pgsql (PostgreSQL database)
+  value: pgsql
+
+- name: DB_PREFIX
+  value: "ch_"
+
+- name: CACHET_URL
+  displayName: 'Cachet URL'
+  required: true
+
+- name: 'APP_KEY'
+  description: Please use base64:[a-zA-Z0-9]{43}= format
+  generate: expression
+  from: "base64:[a-zA-Z0-9]{43}="
+
+- name: 'CACHET_TAG'
+  displayName: Cachet Docker image tag.
+  required: true
+  value: "latest"
