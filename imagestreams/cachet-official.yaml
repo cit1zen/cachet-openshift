@@ -3,7 +3,7 @@ kind: ImageStream
 metadata:
   annotations:
     openshift.io/display-name: "Official Cachet images"
-  name: cachet-official
+  name: cachet-imagestream
 
 spec:
   dockerImageRepository: cachethq/docker

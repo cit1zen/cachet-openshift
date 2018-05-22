@@ -73,7 +73,7 @@ objects:
         - cachet
         from:
           kind: "ImageStreamTag"
-          name: "cachet-official:${CACHET_TAG}"
+          name: "cachet-imagestream:${CACHET_TAG}"
     template:
       metadata:
         labels:
@@ -181,7 +181,7 @@ objects:
           - name: NEXMO_SMS_FROM
             value: "Cachet"
 
-          image: cachet-official
+          image: cachet-imagestream
           livenessProbe:
             failureThreshold: 3
             httpGet:
